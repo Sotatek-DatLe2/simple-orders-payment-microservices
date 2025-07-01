@@ -32,8 +32,9 @@ Simulates payment processing with random success/failure responses.
 
 ### Orders App  
 `POST /orders` - Create order  
-`POST /orders/:id/cancel` - Cancel order  
-`GET /orders/:id` - Get order status  
+`PUT /orders/:id/cancel` - Cancel order  
+`GET /orders/:id` - Get orders detail
+`GET /orders/` - Get orders
 
 ### Payments App  
 `POST /payments/process` - Process payment  
