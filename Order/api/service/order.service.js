@@ -166,14 +166,18 @@ const OrderService = {
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC', filters = {} } = options
     const where = {}
 
-    if (filters.status) where.state = filters.status
+    if (filters.status) {
+      where.state = filters.status
+    }
 
-    if (filters.dateRange?.startDate && filters.dateRange?.endDate) {
-      where.createdAt = Between(new Date(filters.dateRange.startDate), new Date(filters.dateRange.endDate))
-    } else if (filters.dateRange?.startDate) {
-      where.createdAt = MoreThanOrEqual(new Date(filters.dateRange.startDate))
-    } else if (filters.dateRange?.endDate) {
-      where.createdAt = LessThanOrEqual(new Date(filters.dateRange.endDate))
+    if (filters.dateRange) {
+      if (filters.dateRange.startDate && filters.dateRange.endDate) {
+        where.createdAt = Between(new Date(filters.dateRange.startDate), new Date(filters.dateRange.endDate))
+      } else if (filters.dateRange.startDate) {
+        where.createdAt = MoreThanOrEqual(new Date(filters.dateRange.startDate))
+      } else if (filters.dateRange.endDate) {
+        where.createdAt = LessThanOrEqual(new Date(filters.dateRange.endDate))
+      }
     }
 
     const [orders, total] = await OrderService.orderRepository.findAndCount({
