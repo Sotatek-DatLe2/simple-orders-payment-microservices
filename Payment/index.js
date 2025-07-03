@@ -1,21 +1,28 @@
+const express = require('express')
+require('dotenv').config()
+const bodyParser = require('body-parser')
+const cookieParser = require('cookie-parser')
+const swaggerJsDoc = require('swagger-jsdoc')
+const swaggerUi = require('swagger-ui-express')
+const cors = require('cors')
+const router = require('./api/router/index.router')
+const { startKafkaConsumer } = require('./kafka/kafkaConsumer')
 
-const express = require('express');
-require('dotenv').config();
-const bodyParser = require('body-parser');
-const cookieParser = require('cookie-parser');
-const swaggerJsDoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
-const cors = require('cors');
-const router = require('./api/router/index.router');
+const start = async () => {
+  await startKafkaConsumer()
+  console.log('Payment Service is running...')
+}
 
-const app = express();
-const port = process.env.PORT;
+start()
+
+const app = express()
+const port = process.env.PORT
 
 // Middleware
-app.use(cors());
-app.use(bodyParser.json({ limit: '100mb' }));
-app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-app.use(cookieParser());
+app.use(cors())
+app.use(bodyParser.json({ limit: '100mb' }))
+app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }))
+app.use(cookieParser())
 
 // Swagger setup
 const swaggerOptions = {
@@ -47,33 +54,33 @@ const swaggerOptions = {
     ],
   },
   apis: ['./router/*.js'], // Adjusted to match order-service directory structure
-};
+}
 
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+const swaggerDocs = swaggerJsDoc(swaggerOptions)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs))
 
 // Routes
-router(app);
+router(app)
 
-let server;
+let server
 
 const startServer = async () => {
   try {
     server = app.listen(port, () => {
-      console.log(`Order Service running on port ${port}`);
-      console.log(`API documentation is available at http://localhost:${port}/api-docs`);
-    });
+      console.log(`Order Service running on port ${port}`)
+      console.log(`API documentation is available at http://localhost:${port}/api-docs`)
+    })
   } catch (error) {
-    console.error('Failed to start Payment Service:', error);
-    process.exit(1);
+    console.error('Failed to start Payment Service:', error)
+    process.exit(1)
   }
-};
+}
 
 if (process.env.NODE_ENV !== 'test') {
-  startServer();
+  startServer()
 } else {
-  server = app;
+  server = app
 }
 
 // Export app and server for testing
-module.exports = { app, server };
+module.exports = { app, server }

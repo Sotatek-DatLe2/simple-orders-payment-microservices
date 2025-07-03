@@ -8,6 +8,8 @@ import cors from 'cors'
 import OrderService from './api/service/order.service'
 import setupRoutes from './api/router/index.router'
 import { setupSocket } from './socket'
+import { startKafkaConsumer } from './kafka/kafkaConsumer'
+import { producer } from './kafka/kafka'
 
 // Initialize environment variables
 dotenv.config()
@@ -76,6 +78,8 @@ let server: ReturnType<typeof app.listen>
 const startServer = async (): Promise<void> => {
   try {
     await OrderService.initialize() // Initialize PostgreSQL connection
+    await producer.connect() // Connect Kafka producer
+    startKafkaConsumer()
     server = app.listen(port, () => {
       console.log(`Order Service running on port ${port}`)
       console.log(`API documentation is available at http://localhost:${port}/api-docs`)
