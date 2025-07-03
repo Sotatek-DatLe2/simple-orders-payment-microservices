@@ -1,14 +1,24 @@
-const { EntitySchema } = require('typeorm')
-const { v4: uuidv4 } = require('uuid')
+import { EntitySchema } from 'typeorm'
+import { v4 as uuidv4 } from 'uuid'
 
-const OrderState = Object.freeze({
-  CREATED: 'created',
-  CONFIRMED: 'confirmed',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
-})
+export enum OrderState {
+  CREATED = 'created',
+  CONFIRMED = 'confirmed',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+}
 
-const Order = new EntitySchema({
+export interface Order {
+  orderId: string
+  userId: string
+  createdAt: Date
+  state: OrderState
+  totalAmount: number
+  updatedAt?: Date
+  cancelledAt?: Date | null
+}
+
+export const OrderEntity = new EntitySchema<Order>({
   name: 'Order',
   tableName: 'orders',
   columns: {
@@ -16,7 +26,6 @@ const Order = new EntitySchema({
       primary: true,
       type: 'varchar',
       length: 36,
-      generated: false,
       name: 'orderId',
     },
     userId: {
@@ -47,4 +56,4 @@ const Order = new EntitySchema({
   },
 })
 
-module.exports = { Order, OrderState, uuidv4 }
+export { uuidv4 }

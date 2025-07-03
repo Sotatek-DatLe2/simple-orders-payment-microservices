@@ -1,18 +1,34 @@
-const { AppDataSource } = require('../../config/database')
-const { Order, OrderState, uuidv4: uuidv4Order } = require('../model/orderModel')
-const { OrderHistory, uuidv4: uuidv4History } = require('../model/orderState')
+import { AppDataSource } from '../../config/dataSource'
+import { Order, OrderEntity, OrderState, uuidv4 as uuidv4Order } from '../model/orderModel'
+import { OrderHistory, OrderHistoryEntity, uuidv4 as uuidv4History } from '../model/orderState'
 const StateMachine = require('javascript-state-machine')
-const { MoreThanOrEqual, LessThanOrEqual, Between } = require('typeorm')
+import { MoreThanOrEqual, LessThanOrEqual, Between, Repository } from 'typeorm'
+
+interface OrderFilters {
+  status?: OrderState
+  dateRange?: {
+    startDate?: string
+    endDate?: string
+  }
+}
+
+interface GetOrdersOptions {
+  page?: number
+  limit?: number
+  sortBy?: string
+  sortOrder?: 'ASC' | 'DESC'
+  filters?: OrderFilters
+}
 
 const OrderService = {
-  orderRepository: null,
-  historyRepository: null,
+  orderRepository: null as Repository<Order> | null,
+  historyRepository: null as Repository<OrderHistory> | null,
 
-  initialize: async () => {
+  initialize: async (): Promise<void> => {
     try {
       await AppDataSource.initialize()
-      OrderService.orderRepository = AppDataSource.getRepository(Order)
-      OrderService.historyRepository = AppDataSource.getRepository(OrderHistory)
+      OrderService.orderRepository = AppDataSource.getRepository(OrderEntity)
+      OrderService.historyRepository = AppDataSource.getRepository(OrderHistoryEntity)
       console.log('Order Service: TypeORM DataSource initialized successfully')
     } catch (error) {
       console.error('Order Service: Failed to initialize TypeORM DataSource:', error)
@@ -20,25 +36,26 @@ const OrderService = {
     }
   },
 
-  createOrder: async (userId, totalAmount) => {
-    if (!OrderService.orderRepository) throw new Error('OrderService not initialized.')
+  createOrder: async (userId: string, totalAmount: number): Promise<Order> => {
+    if (!OrderService.orderRepository || !OrderService.historyRepository) {
+      throw new Error('OrderService not initialized.')
+    }
 
     if (!userId || !totalAmount || totalAmount <= 0) {
       throw new Error('Invalid user ID or total amount')
     }
 
-    const order = {
+    const order: Order = {
       orderId: uuidv4Order(),
       userId,
       totalAmount,
       createdAt: new Date(),
       state: OrderState.CREATED,
-    }
+    } as Order
 
     try {
       const savedOrder = await OrderService.orderRepository.save(order)
 
-      // Record initial state in history
       await OrderService.historyRepository.save({
         Id: uuidv4History(),
         orderId: savedOrder.orderId,
@@ -48,19 +65,20 @@ const OrderService = {
       })
 
       return savedOrder
-    } catch (error) {
+    } catch (error: any) {
       console.error('Order Service: Failed to create order:', error)
       throw new Error(`Failed to create order: ${error.message}`)
     }
   },
 
-  changeOrderState: async (orderId, newState) => {
-    if (!OrderService.orderRepository) throw new Error('OrderService not initialized.')
+  changeOrderState: async (orderId: string, newState: OrderState): Promise<boolean> => {
+    if (!OrderService.orderRepository || !OrderService.historyRepository) {
+      throw new Error('OrderService not initialized.')
+    }
 
     const order = await OrderService.orderRepository.findOne({ where: { orderId } })
     if (!order) throw new Error('Order not found')
 
-    // Initialize state machine
     const fsm = new StateMachine({
       init: order.state,
       transitions: [
@@ -70,7 +88,7 @@ const OrderService = {
       ],
     })
 
-    let transitionName
+    let transitionName: string
     if (newState === OrderState.CONFIRMED) transitionName = 'confirm'
     else if (newState === OrderState.DELIVERED) transitionName = 'deliver'
     else if (newState === OrderState.CANCELLED) transitionName = 'cancel'
@@ -80,7 +98,6 @@ const OrderService = {
       throw new Error(`Cannot transition from ${order.state} to ${newState}`)
     }
 
-    // Apply transition
     fsm[transitionName]()
 
     const previousState = order.state
@@ -92,7 +109,6 @@ const OrderService = {
 
     await OrderService.orderRepository.save(order)
 
-    // Log state change
     await OrderService.historyRepository.save({
       Id: uuidv4History(),
       orderId: order.orderId,
@@ -104,8 +120,8 @@ const OrderService = {
     return true
   },
 
-  getOrderStatus: async (orderId) => {
-    const order = await OrderService.orderRepository.findOne({
+  getOrderStatus: async (orderId: string): Promise<Partial<Order>> => {
+    const order = await OrderService.orderRepository!.findOne({
       where: { orderId },
       select: ['orderId', 'state', 'createdAt', 'totalAmount'],
     })
@@ -113,12 +129,12 @@ const OrderService = {
     return order
   },
 
-  getOrder: async (orderId) => {
+  getOrder: async (orderId: string): Promise<any> => {
     if (!OrderService.orderRepository || !OrderService.historyRepository) {
       throw new Error('OrderService not initialized. Call initialize() first.')
     }
 
-    const queryRunner = OrderService.orderRepository.manager.connection.createQueryRunner()
+    const queryRunner = AppDataSource.createQueryRunner()
 
     await queryRunner.connect()
     await queryRunner.startTransaction()
@@ -126,7 +142,7 @@ const OrderService = {
     try {
       const trimmedOrderId = orderId.trim()
 
-      const order = await queryRunner.manager.findOne(OrderService.orderRepository.target, {
+      const order = await queryRunner.manager.findOne(OrderEntity, {
         where: { orderId: trimmedOrderId },
         select: ['orderId', 'userId', 'createdAt', 'state', 'totalAmount', 'cancelledAt', 'updatedAt'],
       })
@@ -135,7 +151,7 @@ const OrderService = {
         throw new Error('Order not found')
       }
 
-      const orderHistory = await queryRunner.manager.find(OrderService.historyRepository.target, {
+      const orderHistory = await queryRunner.manager.find(OrderHistoryEntity, {
         where: { orderId: trimmedOrderId },
         order: { createdAt: 'DESC' },
         select: ['Id', 'orderId', 'state', 'previousState', 'createdAt'],
@@ -153,7 +169,7 @@ const OrderService = {
           createdAt: history.createdAt,
         })),
       }
-    } catch (error) {
+    } catch (error: any) {
       await queryRunner.rollbackTransaction()
       console.error('Order Service: Failed to fetch order with transaction:', error.message)
       throw new Error(`Failed to fetch order: ${error.message}`)
@@ -162,9 +178,9 @@ const OrderService = {
     }
   },
 
-  getOrders: async (options) => {
+  getOrders: async (options: GetOrdersOptions): Promise<any> => {
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC', filters = {} } = options
-    const where = {}
+    const where: any = {}
 
     if (filters.status) {
       where.state = filters.status
@@ -180,7 +196,7 @@ const OrderService = {
       }
     }
 
-    const [orders, total] = await OrderService.orderRepository.findAndCount({
+    const [orders, total] = await OrderService.orderRepository!.findAndCount({
       select: ['orderId', 'userId', 'createdAt', 'state', 'totalAmount', 'cancelledAt', 'updatedAt'],
       where,
       order: { [sortBy]: sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC' },
@@ -192,4 +208,4 @@ const OrderService = {
   },
 }
 
-module.exports = OrderService
+export default OrderService
