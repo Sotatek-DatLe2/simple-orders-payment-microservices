@@ -5,6 +5,7 @@ import { OrderState } from '../model/orderModel'
 import { OrderDTO, OrderWithHistoryDTO } from './orderDTOs'
 import { getOrdersSchema, createOrderSchema, orderIdSchema } from './validationSchema'
 import { scheduleOrderDelivery } from '../../util/autoUpdateStatus'
+import { emitOrderCreated, emitOrderUpdate } from '../../socket'
 
 // Interfaces for type safety
 interface ApiResponse<T> {
@@ -42,14 +43,16 @@ const sendErrorResponse = (res: Response, statusCode: number, message: string, d
 }
 
 // Validation middleware
-const validateRequest = (schema: any) => async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await schema.validateAsync(req.body || req.query || req.params, { abortEarly: false })
-    next()
-  } catch (error) {
-    sendErrorResponse(res, 400, 'Validation failed', error)
+const validateRequest =
+  (schema: any, source: 'body' | 'query' | 'params' = 'body') =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await schema.validateAsync(req[source], { abortEarly: false })
+      next()
+    } catch (error) {
+      sendErrorResponse(res, 400, 'Validation failed', error)
+    }
   }
-}
 
 // Config module for environment variables
 const config = {
@@ -94,6 +97,7 @@ const createOrder = async (req: Request<{}, {}, CreateOrderBody>, res: Response)
   }
 
   const order = await OrderService.createOrder(userId, totalAmount)
+  console.log(`Order ${order.orderId} created, waiting for payment confirmation...`)
 
   try {
     const paymentResponse = await axios.post(
@@ -102,19 +106,26 @@ const createOrder = async (req: Request<{}, {}, CreateOrderBody>, res: Response)
       { headers: { Authorization: authToken } }
     )
 
+    console.log(`Payment service response for order ${order.orderId}:`, paymentResponse.data)
+
     if (paymentResponse.data.status === 'confirmed') {
+      console.log(`Payment confirmed for order ${order.orderId}, updating state to CONFIRMED...`)
       await OrderService.changeOrderState(order.orderId, OrderState.CONFIRMED)
+      emitOrderCreated(order)
       scheduleOrderDelivery(order.orderId)
+      console.log(`Emit orderCreated for order ${order.orderId}`)
       return sendSuccessResponse(res, new OrderDTO(order), 201, 'Order created and payment confirmed successfully')
     } else {
+      console.log(`Payment declined for order ${order.orderId}, cancelling order...`)
       await OrderService.changeOrderState(order.orderId, OrderState.CANCELLED)
+      emitOrderCreated(order)
       return sendErrorResponse(res, 402, 'Order created but payment declined', {
         order: new OrderDTO(order),
         details: paymentResponse.data.message || 'Payment was not successful.',
       })
     }
   } catch (error) {
-    console.error(`Order Controller: Payment service failed for order ${order.orderId}:`, (error as AxiosError).message)
+    console.error(`Payment service call failed for order ${order.orderId}:`, (error as AxiosError).message)
     await OrderService.changeOrderState(order.orderId, OrderState.CANCELLED)
     return sendErrorResponse(
       res,
@@ -127,7 +138,11 @@ const createOrder = async (req: Request<{}, {}, CreateOrderBody>, res: Response)
 
 // [PUT] /api/orders/:orderId/cancel
 const cancelOrder = async (req: Request<{ orderId: string }>, res: Response) => {
+  console.log(`Cancelling order with ID: ${req.params.orderId}`)
   await OrderService.changeOrderState(req.params.orderId, OrderState.CANCELLED)
+  const updatedOrder = await OrderService.getOrder(req.params.orderId)
+  emitOrderUpdate(updatedOrder)
+  console.log('Emit orderUpdated for order', updatedOrder.orderId)
   sendSuccessResponse(res, null, 200, 'Order cancelled successfully')
 }
 
@@ -141,6 +156,6 @@ const getOrderDetails = async (req: Request<{ orderId: string }>, res: Response)
 export default {
   getOrders: [validateRequest(getOrdersSchema), getOrders],
   createOrder: [validateRequest(createOrderSchema), createOrder],
-  cancelOrder: [validateRequest(orderIdSchema), cancelOrder],
-  getOrderDetails: [validateRequest(orderIdSchema), getOrderDetails],
+  cancelOrder: [validateRequest(orderIdSchema, 'params'), cancelOrder],
+  getOrderDetails: [validateRequest(orderIdSchema, 'params'), getOrderDetails],
 }

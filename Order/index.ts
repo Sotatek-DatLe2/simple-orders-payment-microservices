@@ -6,7 +6,8 @@ import swaggerJsDoc from 'swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
 import cors from 'cors'
 import OrderService from './api/service/order.service'
-import setupRoutes from './api/router/index.router' // Import setupRoutes
+import setupRoutes from './api/router/index.router'
+import { setupSocket } from './socket'
 
 // Initialize environment variables
 dotenv.config()
@@ -79,6 +80,7 @@ const startServer = async (): Promise<void> => {
       console.log(`Order Service running on port ${port}`)
       console.log(`API documentation is available at http://localhost:${port}/api-docs`)
     })
+    setupSocket(server) // Setup WebSocket connection
   } catch (error) {
     console.error('Failed to start Order Service:', error)
     process.exit(1)
