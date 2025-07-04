@@ -24,7 +24,9 @@ Simulates payment processing with random success/failure responses.
 ## Tech Stack  
 - Node.js, Express.js  
 - State machine for order state management  
-- REST APIs for communication  
+- Pub/Sub kafka for communication among services
+- Redis for updated order status
+- Build with docker  
 
 ---
 
