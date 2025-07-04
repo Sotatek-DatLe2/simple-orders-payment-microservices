@@ -13,6 +13,8 @@ export const setupSocket = (server: any) => {
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id)
 
+    io.emit('isOnlineMode', { status: true })
+
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id)
     })

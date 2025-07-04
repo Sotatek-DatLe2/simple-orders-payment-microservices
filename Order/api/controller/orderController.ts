@@ -69,30 +69,36 @@ const getOrders = async (req: Request<{}, {}, {}, GetOrdersQuery>, res: Response
 
 const createOrder = async (req: Request<{}, {}, CreateOrderBody>, res: Response) => {
   const { userId, totalAmount } = req.body
-
-  const order = await OrderService.createOrder(userId, totalAmount)
-  console.log(`Order ${order.orderId} created, emitting event order.created...`)
-
-  await emitOrderCreatedKafka({ orderId: order.orderId, totalAmount: order.totalAmount })
-  scheduleOrderDelivery(order.orderId)
-
-  sendSuccessResponse(res, new OrderDTO(order), 201, 'Order created successfully, waiting for payment confirmation')
+  try {
+    const order = await OrderService.createOrder(userId, totalAmount)
+    await emitOrderCreatedKafka({ orderId: order.orderId, totalAmount: order.totalAmount })
+    scheduleOrderDelivery(order.orderId)
+    sendSuccessResponse(res, new OrderDTO(order), 201, 'Order created successfully, waiting for payment confirmation')
+  } catch (error) {
+    console.error('Error creating order:', error)
+    sendErrorResponse(res, 500, 'Failed to create order', error)
+  }
 }
 
 const cancelOrder = async (req: Request, res: Response) => {
-  console.log(`Cancelling order with ID: ${req.params.orderId}`)
+  try {
+    await OrderService.changeOrderState(req.params.orderId, OrderState.CANCELLED)
+    const updatedOrder = await OrderService.getOrder(req.params.orderId)
 
-  await OrderService.changeOrderState(req.params.orderId, OrderState.CANCELLED)
-  const updatedOrder = await OrderService.getOrder(req.params.orderId)
+    emitOrderUpdate(updatedOrder)
 
-  emitOrderUpdate(updatedOrder)
-  console.log('Emit orderUpdated for order', updatedOrder.orderId)
-
-  sendSuccessResponse(res, null, 200, 'Order cancelled successfully')
+    sendSuccessResponse(res, null, 200, 'Order cancelled successfully')
+  } catch (error) {
+    console.error('Error cancelling order:', error)
+    sendErrorResponse(res, 500, 'Failed to cancel order', error)
+  }
 }
 
 const getOrderDetails = async (req: Request, res: Response) => {
   const order = await OrderService.getOrder(req.params.orderId)
+  if (!order) {
+    return sendErrorResponse(res, 404, 'Order not found')
+  }
   sendSuccessResponse(res, new OrderWithHistoryDTO(order, order.history))
 }
 

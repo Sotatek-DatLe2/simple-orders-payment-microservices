@@ -6,9 +6,12 @@ services:
       - '3002:3002'
     depends_on:
       - kafka
+      - redis
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - KAFKA_BROKER=kafka:9092 # ✅ Trỏ vào hostname service kafka trong cùng network
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
   payments-service:
     build: ./Payment
@@ -16,9 +19,12 @@ services:
       - '3001:3001'
     depends_on:
       - kafka
+      - redis
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - KAFKA_BROKER=kafka:9092 # ✅ Trỏ vào hostname service kafka trong cùng network
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -38,3 +44,27 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - '6379:6379'
+    environment:
+      - REDIS_LOGLEVEL=debug
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - redis-data:/data
+
+  order-worker:
+    build: ./Order
+    command: npm run worker
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Ho_Chi_Minh
+
+volumes:
+  redis-data:

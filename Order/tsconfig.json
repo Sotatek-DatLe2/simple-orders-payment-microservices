@@ -10,12 +10,14 @@
         "rootDir": "./",
         "types": [
             "node",
-            "express"
+            "express",
+            "jest"
         ],
         "sourceMap": true
     },
     "include": [
-        "**/*.ts"
+        "**/*.ts",
+        "test/order.test.js"
     ],
     "exclude": [
         "node_modules",

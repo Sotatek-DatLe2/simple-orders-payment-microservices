@@ -26,7 +26,10 @@ const OrderService = {
 
   initialize: async (): Promise<void> => {
     try {
-      await AppDataSource.initialize()
+      await AppDataSource.initialize().then(() => {
+        console.log('DataSource initialized')
+        return AppDataSource.query(`SET TIME ZONE 'Asia/Ho_Chi_Minh'`)
+      })
       OrderService.orderRepository = AppDataSource.getRepository(OrderEntity)
       OrderService.historyRepository = AppDataSource.getRepository(OrderHistoryEntity)
       console.log('Order Service: TypeORM DataSource initialized successfully')
@@ -205,6 +208,21 @@ const OrderService = {
     })
 
     return { data: orders, total, page, totalPages: Math.ceil(total / limit) }
+  },
+  deleteOrder: async (orderId: string): Promise<void> => {
+    if (!OrderService.orderRepository) {
+      throw new Error('OrderService not initialized.')
+    }
+
+    const order = await OrderService.orderRepository.findOne({ where: { orderId } })
+    if (!order) throw new Error('Order not found')
+
+    try {
+      await OrderService.orderRepository.remove(order)
+    } catch (error: any) {
+      console.error('Order Service: Failed to delete order:', error)
+      throw new Error(`Failed to delete order: ${error.message}`)
+    }
   },
 }
 
