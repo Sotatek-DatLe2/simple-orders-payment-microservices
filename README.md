@@ -12,6 +12,7 @@ Manages order lifecycle and communicates with Payments App to process payments.
 - Create order
 - Cancel order
 - Check order status
+- Realtime order dashboard
 - Order states: `created → confirmed → delivered/cancelled`
 
 ---
@@ -26,7 +27,8 @@ Simulates payment processing with random success/failure responses.
 - State machine for order state management  
 - Pub/Sub kafka for communication among services
 - Redis for updated order status
-- Build with docker  
+- Build with docker
+- Realtime order updating with websocket
 
 ---
 
