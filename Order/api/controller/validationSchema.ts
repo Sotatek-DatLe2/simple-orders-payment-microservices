@@ -1,16 +1,17 @@
-const Joi = require('joi')
+import Joi, { CustomHelpers } from 'joi'
 
 const getOrdersSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(10),
   sortBy: Joi.string().valid('createdAt', 'totalAmount', 'state').default('createdAt'),
   sortOrder: Joi.string().valid('asc', 'desc').insensitive().default('desc'),
+
   startDate: Joi.alternatives()
     .try(
       Joi.date().iso(),
       Joi.string()
         .pattern(/^\d{4}-\d{2}-\d{2}$/)
-        .custom((value, helpers) => {
+        .custom((value: string, helpers: CustomHelpers) => {
           const date = new Date(value)
           if (isNaN(date.getTime())) {
             return helpers.error('date.base')
@@ -20,12 +21,13 @@ const getOrdersSchema = Joi.object({
     )
     .optional()
     .allow(null, ''),
+
   endDate: Joi.alternatives()
     .try(
       Joi.date().iso(),
       Joi.string()
         .pattern(/^\d{4}-\d{2}-\d{2}$/)
-        .custom((value, helpers) => {
+        .custom((value: string, helpers: CustomHelpers) => {
           const date = new Date(value)
           if (isNaN(date.getTime())) {
             return helpers.error('date.base')
@@ -42,12 +44,14 @@ const getOrdersSchema = Joi.object({
           Joi.date().iso().min(Joi.ref('startDate')),
           Joi.string()
             .pattern(/^\d{4}-\d{2}-\d{2}$/)
-            .custom((value, helpers) => {
+            .custom((value: string, helpers: CustomHelpers) => {
               const date = new Date(value)
+              const startDate = new Date(helpers.state.ancestors[0].startDate)
+
               if (isNaN(date.getTime())) {
                 return helpers.error('date.base')
               }
-              if (new Date(value) < new Date(helpers.state.ancestors[0].startDate)) {
+              if (date < startDate) {
                 return helpers.error('date.min', { limit: helpers.state.ancestors[0].startDate })
               }
               return date
@@ -55,7 +59,8 @@ const getOrdersSchema = Joi.object({
         )
         .optional(),
     }),
-  status: Joi.string().valid('CREATED', 'CONFIRMED', 'DELIVERED', 'CANCELLED').optional().allow(null, ''), // Allow null or empty string to mean "no filter"
+
+  status: Joi.string().valid('CREATED', 'CONFIRMED', 'DELIVERED', 'CANCELLED').optional().allow(null, ''),
 }).unknown(false)
 
 const createOrderSchema = Joi.object({
@@ -67,4 +72,4 @@ const orderIdSchema = Joi.object({
   orderId: Joi.string().uuid().required(),
 })
 
-module.exports = { getOrdersSchema, createOrderSchema, orderIdSchema }
+export { getOrdersSchema, createOrderSchema, orderIdSchema }

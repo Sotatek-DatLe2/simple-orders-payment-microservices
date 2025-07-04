@@ -1,7 +1,15 @@
-const { EntitySchema } = require('typeorm')
-const { v4: uuidv4 } = require('uuid')
+import { EntitySchema } from 'typeorm'
+import { v4 as uuidv4 } from 'uuid'
 
-const OrderHistory = new EntitySchema({
+export interface OrderHistory {
+  Id: string
+  orderId: string
+  state: string
+  previousState?: string | null
+  createdAt: Date
+}
+
+export const OrderHistoryEntity = new EntitySchema<OrderHistory>({
   name: 'OrderHistory',
   tableName: 'order_history',
   columns: {
@@ -9,7 +17,6 @@ const OrderHistory = new EntitySchema({
       primary: true,
       type: 'varchar',
       length: 36,
-      generated: false,
       name: 'Id',
     },
     orderId: {
@@ -33,4 +40,4 @@ const OrderHistory = new EntitySchema({
   },
 })
 
-module.exports = { OrderHistory, uuidv4 }
+export { uuidv4 }

@@ -1,0 +1,70 @@
+version: '3'
+services:
+  orders-service:
+    build: ./Order
+    ports:
+      - '3002:3002'
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  payments-service:
+    build: ./Payment
+    ports:
+      - '3001:3001'
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    ports:
+      - '2181:2181'
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    ports:
+      - '9092:9092'
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - '6379:6379'
+    environment:
+      - REDIS_LOGLEVEL=debug
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - redis-data:/data
+
+  order-worker:
+    build: ./Order
+    command: npm run worker
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Ho_Chi_Minh
+
+volumes:
+  redis-data:
